@@ -45,7 +45,7 @@ jobs:
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r EPFD/fernando/github/requirements.txt
+          pip install -r ./requirements.txt
 
       # Ollama runs ON the runner, so there is no API key, no quota and no
       # per-request cost. gemma3:1b matches the model sc1.py uses locally.
@@ -81,7 +81,7 @@ jobs:
           START_ROW: ${{ inputs.start_row }}
           BATCH_SIZE: ${{ inputs.batch_size }}
           SLEEP_SECONDS: ${{ inputs.sleep_seconds }}
-        run: bash EPFD/fernando/github/run_batch.sh
+        run: bash ./run_batch.sh
 
       - name: Upload batch artifacts
         if: always()
@@ -89,8 +89,8 @@ jobs:
         with:
           name: batch-start-${{ inputs.start_row }}
           path: |
-            EPFD/fernando/github/results.json
-            EPFD/fernando/github/sc1_batch.log
+            ./results.json
+            ./sc1_batch.log
           if-no-files-found: warn
 
       - name: Dispatch the next batch
