@@ -34,7 +34,7 @@ permissions:
 jobs:
   batch:
     runs-on: ubuntu-latest
-    timeout-minutes: 330
+    timeout-minutes: 1
 
     steps:
       - name: Check out the repository
