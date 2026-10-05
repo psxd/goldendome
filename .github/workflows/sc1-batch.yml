@@ -25,6 +25,9 @@ on:
 concurrency:
   group: golden-dome-roster
   cancel-in-progress: false
+permissions:
+  contents: read
+  actions: write
 
 # 330 min leaves headroom under the 360 min job cap for the Ollama install and
 # model pull, which happen inside this job and count against the same budget.
