@@ -22,17 +22,17 @@ DELAY_BETWEEN_MEMBERS = float(os.getenv("DELAY_BETWEEN_MEMBERS", "20.0"))
 BACKOFF_SCHEDULE = [60, 300, 600]
 
 TOPIC_PATTERNS = {
-    "Golden Dome & Defense": [
-        r"\bgolden dome\b",
-        r"\bmissile defense\b",
-        r"\bspace[- ]based interceptors?\b",
-        r"\bspace[- ]based sensors?\b"
+    "Golden Dome": [
+        r"\bgolden\s+dome\b",
+        r"\bspace[- ]based\s+missile\s+defenses?\b",
+        r"\bspace[- ]based\s+interceptors?\b",
+        r"\bspace[- ]based\s+sensors?\b"
     ]
 }
 
 SEARCH_TOPICS = [
     "Golden Dome",
-    "missile defense",
+    "space based missile defense",
     "space based interceptors",
     "space based sensors"
 ]
