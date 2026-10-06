@@ -1,0 +1,101 @@
+name: Goilden dome article aggregator
+
+on:
+  schedule:
+    # Runs automatically every 6 hours starting from Row 2
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+    inputs:
+      start_row:
+        description: 'Row number to start from (Row 2 = 1st member)'
+        required: true
+        default: '2'
+      batch_size:
+        description: 'Number of members/rows to process in this batch'
+        required: true
+        default: '20'
+      pause_minutes:
+        description: 'Minutes to wait before triggering the next batch'
+        required: true
+        default: '5'
+
+jobs:
+  run-batch-scraper:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install Python Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Install & Start Ollama
+        run: |
+          echo "[+] Downloading and installing Ollama..."
+          curl -fsSL https://ollama.com/install.sh | sh
+          
+          echo "[+] Starting Ollama server in background..."
+          ollama serve > /dev/null 2>&1 &
+          
+          echo "[+] Waiting for Ollama server to respond..."
+          sleep 5
+          
+          echo "[+] Pulling model gemma3:1b..."
+          ollama pull gemma3:1b
+
+      - name: Execute Batch Scraper
+        env:
+          WEB_APP_URL: ${{ secrets.WEB_APP_URL }}
+          OLLAMA_MODEL: 'gemma3:1b'
+          DELAY_BETWEEN_MEMBERS: '20.0'
+        run: |
+          START_ROW="${{ github.event.inputs.start_row }}"
+          BATCH_SIZE="${{ github.event.inputs.batch_size }}"
+          
+          if [ -z "$START_ROW" ]; then START_ROW=2; fi
+          if [ -z "$BATCH_SIZE" ]; then BATCH_SIZE=20; fi
+          
+          python sct2.py --start-row "$START_ROW" --batch-size "$BATCH_SIZE"
+
+      - name: Pause and Trigger Next Batch Workflow
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.PAT_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          START_ROW="${{ github.event.inputs.start_row }}"
+          BATCH_SIZE="${{ github.event.inputs.batch_size }}"
+          PAUSE_MINS="${{ github.event.inputs.pause_minutes }}"
+
+          if [ -z "$START_ROW" ]; then START_ROW=2; fi
+          if [ -z "$BATCH_SIZE" ]; then BATCH_SIZE=20; fi
+          if [ -z "$PAUSE_MINS" ]; then PAUSE_MINS=5; fi
+
+          NEXT_ROW=$((START_ROW + BATCH_SIZE))
+          MAX_ROSTER_ROWS=536
+
+          if [ "$NEXT_ROW" -le "$MAX_ROSTER_ROWS" ]; then
+            echo "[+] Batch completed successfully."
+            echo "[+] Pausing for $PAUSE_MINS minute(s) before triggering next batch..."
+            sleep $((PAUSE_MINS * 60))
+
+            echo "[+] Dispatching next workflow run for start_row: $NEXT_ROW (batch_size: $BATCH_SIZE)..."
+            
+            curl -X POST \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              https://api.github.com/repos/${{ github.repository }}/actions/workflows/congress_scraper.yml/dispatches \
+              -d "{\"ref\":\"${{ github.ref_name }}\",\"inputs\":{\"start_row\":\"$NEXT_ROW\",\"batch_size\":\"$BATCH_SIZE\",\"pause_minutes\":\"$PAUSE_MINS\"}}"
+          else
+            echo "[+] All roster rows (up to row $MAX_ROSTER_ROWS) have been processed!"
+          fi
