@@ -25,7 +25,9 @@ TOPIC_PATTERNS = {
     "Golden Dome / Defense": [
         r"\bgolden dome\b",
         r"\bmissile defense\b",
-        r"\bdefense shield\b"
+        r"\bdefense shield\b",
+        r"\bspace shield\b",              
+        r"\bspace[- ]based interceptors\b" 
     ],
     "Spectrum & Radars": [
         r"\b3\.1\s*-\s*3\.45\s*ghz\b",
@@ -40,9 +42,11 @@ SEARCH_TOPICS = [
     "3.1-3.45 GHz",
     "spectrum auction",
     "missile defense",
+    "space shield",
     "defense shield",
     "low 3 spectrum",
-    "radar interference"
+    "radar interference",
+    "space based interceptors"
 ]
 
 LEGISLATORS_FEED = "https://unitedstates.github.io/congress-legislators/legislators-current.json"
