@@ -22,7 +22,11 @@ on:
 concurrency:
   group: golden-dome-roster
   cancel-in-progress: false
-
+  
+permissions:
+  contents: write
+  actions: write
+  
 jobs:
   batch:
     runs-on: ubuntu-latest
