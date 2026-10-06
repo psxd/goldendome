@@ -1,7 +1,0 @@
-# Dependencies for sc1.py (Golden Dome stance tracker).
-# Each of the last three is a SOFT import in sc1.py (guarded by try/except),
-# so a missing one degrades that collector instead of crashing the run.
-requests>=2.31,<3
-trafilatura>=1.6
-feedparser>=6.0.10
-duckduckgo_search>=5.0.0
