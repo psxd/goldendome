@@ -90,7 +90,7 @@ jobs:
           NEXT_ROW: ${{ steps.batch.outputs.NEXT_ROW }}
         run: |
           echo "Roster continues at row ${NEXT_ROW}; dispatching the next batch."
-          gh workflow run "Golden Dome roster (batch)" \
+          gh workflow run automate.yaml \
             --ref "${GITHUB_REF_NAME}" \
             -f start_row="${NEXT_ROW}" \
             -f batch_size="${{ inputs.batch_size }}" \
