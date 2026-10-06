@@ -22,31 +22,19 @@ DELAY_BETWEEN_MEMBERS = float(os.getenv("DELAY_BETWEEN_MEMBERS", "20.0"))
 BACKOFF_SCHEDULE = [60, 300, 600]
 
 TOPIC_PATTERNS = {
-    "Golden Dome / Defense": [
+    "Golden Dome & Defense": [
         r"\bgolden dome\b",
         r"\bmissile defense\b",
-        r"\bdefense shield\b",
-        r"\bspace shield\b",              
-        r"\bspace[- ]based interceptors\b" 
-    ],
-    "Spectrum & Radars": [
-        r"\b3\.1\s*-\s*3\.45\s*ghz\b",
-        r"\blow 3 spectrum\b",
-        r"\bspectrum auction\b",
-        r"\bradar interference\b"
+        r"\bspace[- ]based interceptors\b",
+        r"\bspace[- ]based sensors\b"
     ]
 }
 
 SEARCH_TOPICS = [
     "Golden Dome",
-    "3.1-3.45 GHz",
-    "spectrum auction",
     "missile defense",
-    "space shield",
-    "defense shield",
-    "low 3 spectrum",
-    "radar interference",
-    "space based interceptors"
+    "space based interceptors",
+    "space based sensors"
 ]
 
 LEGISLATORS_FEED = "https://unitedstates.github.io/congress-legislators/legislators-current.json"
