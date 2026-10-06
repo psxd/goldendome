@@ -25,8 +25,8 @@ TOPIC_PATTERNS = {
     "Golden Dome & Defense": [
         r"\bgolden dome\b",
         r"\bmissile defense\b",
-        r"\bspace[- ]based interceptors\b",
-        r"\bspace[- ]based sensors\b"
+        r"\bspace[- ]based interceptors?\b",
+        r"\bspace[- ]based sensors?\b"
     ]
 }
 
