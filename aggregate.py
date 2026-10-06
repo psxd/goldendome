@@ -1,12 +1,7 @@
 #!/usr/bin/env python3
 """
 Congress Member Article Search & Local LLM Stance Evaluator
-Features:
- - Accepts --start-row and --batch-size CLI arguments for GitHub Actions batching.
- - Runs Ollama (gemma3:1b) locally in the GitHub Actions runner environment.
- - Pre-checks existing URLs on the sheet per legislator to prevent duplicate columns.
- - Sends 5-column source blocks to the Google Apps Script Web App.
- - Implements 20s delays between queries and 1 min -> 5 min -> 10 min rate-limit backoffs.
+Supports structured JSON batch reporting for run_batch.sh.
 """
 
 import os
@@ -21,16 +16,9 @@ import xml.etree.ElementTree as ET
 import requests
 import ollama
 
-# ==============================================================================
-# CONFIGURATION
-# ==============================================================================
-WEB_APP_URL = os.getenv("WEB_APP_URL", "")
+WEB_APP_URL = os.getenv("APPS_SCRIPT_URL") or os.getenv("WEB_APP_URL", "")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "gemma3:1b")
-
-# Default 20-second delay between member queries
 DELAY_BETWEEN_MEMBERS = float(os.getenv("DELAY_BETWEEN_MEMBERS", "20.0"))
-
-# Explicit rate-limit backoff schedule in seconds: 1 min, 5 mins, 10 mins
 BACKOFF_SCHEDULE = [60, 300, 600]
 
 TOPIC_PATTERNS = {
@@ -68,9 +56,6 @@ VOTING_STATES = {
 }
 
 
-# ==============================================================================
-# OLLAMA LOCAL ANALYSIS (gemma3:1b)
-# ==============================================================================
 def analyze_article_with_ollama(member_name: str, title: str, description: str, regex_hits: dict) -> dict:
     matched_terms = []
     for cat, terms in regex_hits.items():
@@ -103,17 +88,17 @@ Respond ONLY with valid JSON in this exact structure:
             options={"temperature": 0.1}
         )
         content = response['message']['content'].strip()
-        
+
         if content.startswith("```json"):
             content = content[7:]
         if content.endswith("```"):
             content = content[:-3]
-        
+
         parsed = json.loads(content.strip())
         stance = parsed.get("stance", "Neutral")
         if stance not in ["Support", "Oppose", "Neutral"]:
             stance = "Neutral"
-        
+
         summary = parsed.get("summary", f"Keywords: {regex_keywords_str} - {title}")
         return {"stance": stance, "summary": summary[:250]}
 
@@ -124,9 +109,6 @@ Respond ONLY with valid JSON in this exact structure:
         }
 
 
-# ==============================================================================
-# DEDUPLICATION & SHEET INTERFACE
-# ==============================================================================
 def normalize_url(url: str) -> str:
     if not url:
         return ""
@@ -143,8 +125,8 @@ def get_existing_urls_for_member(member_name: str) -> set:
         if resp.status_code == 200:
             urls = resp.json().get("urls", [])
             return {normalize_url(u) for u in urls if u}
-    except Exception as e:
-        print(f"  [!] Failed to retrieve existing URLs for {member_name}: {e}")
+    except Exception:
+        pass
     return set()
 
 
@@ -159,14 +141,11 @@ def send_source_to_web_app(member_name: str, source_data: dict) -> bool:
         if response.status_code == 200:
             res_json = response.json()
             return res_json.get("status") == "success" or res_json.get("added") is True
-    except Exception as e:
-        print(f"  [!] POST request failed for {member_name}: {e}")
+    except Exception:
+        pass
     return False
 
 
-# ==============================================================================
-# RSS & SEARCH LOGIC
-# ==============================================================================
 def build_news_query_url(target_member: str, keyphrases: list) -> str:
     phrase_str = " OR ".join([f'"{kp}"' for kp in keyphrases])
     raw_query = f'"{target_member}" ({phrase_str})'
@@ -228,19 +207,13 @@ def fetch_articles_for_member(member_name: str) -> list:
             if e.code in [429, 500, 502, 503, 504]:
                 if attempt < len(BACKOFF_SCHEDULE):
                     wait_time = BACKOFF_SCHEDULE[attempt]
-                    wait_minutes = wait_time // 60
-                    print(f"  [!] HTTP {e.code} (Rate Limit / Server Busy) for {member_name}.")
-                    print(f"  [!] Waiting {wait_minutes} minute(s) ({wait_time}s) before retry (Attempt {attempt + 1}/{len(BACKOFF_SCHEDULE)})...")
                     time.sleep(wait_time)
                     attempt += 1
                 else:
-                    print(f"  [!] HTTP {e.code} persistent for {member_name} after 1, 5, and 10 min waits. Skipping.")
                     break
             else:
-                print(f"  [!] HTTP {e.code} Error for {member_name}: {e.reason}")
                 break
-        except Exception as e:
-            print(f"  [!] Exception fetching articles for {member_name}: {e}")
+        except Exception:
             break
 
     return []
@@ -265,18 +238,13 @@ def get_legislators_list() -> list:
     return members
 
 
-# ==============================================================================
-# MAIN BATCH EXECUTION
-# ==============================================================================
 def main():
-    parser = argparse.ArgumentParser(description="Congress Member Article Scraper & Ollama Evaluator")
-    parser.add_argument("--start-row", type=int, default=2, help="Row index to start from (2 = Row 2 / 1st member)")
-    parser.add_argument("--batch-size", type=int, default=20, help="Number of rows to process in this run")
+    parser = argparse.ArgumentParser(description="Congress Member Article Scraper")
+    parser.add_argument("--start-row", type=int, default=2)
+    parser.add_argument("--batch-size", "--limit-members", type=int, default=10, dest="batch_size")
+    parser.add_argument("--quiet", action="store_true")
+    parser.add_argument("--json", type=str, default="results.json")
     args = parser.parse_args()
-
-    if not WEB_APP_URL:
-        print("[!] ERROR: WEB_APP_URL environment variable is not set.")
-        sys.exit(1)
 
     legislators = get_legislators_list()
     total_members = len(legislators)
@@ -284,41 +252,31 @@ def main():
     start_idx = max(0, args.start_row - 2)
     end_idx = min(total_members, start_idx + args.batch_size)
 
-    print(f"[+] Total voting members in roster: {total_members}")
-    print(f"[+] Processing batch: Rows {start_idx + 2} to {end_idx + 1} ({end_idx - start_idx} members)")
-    print(f"[+] Using Ollama Model: {OLLAMA_MODEL}")
-    print(f"[+] Default pause between members: {DELAY_BETWEEN_MEMBERS}s")
-    print(f"[+] Rate-limit backoff schedule: 1 min -> 5 min -> 10 min\n")
+    completed_members = []
 
     for idx in range(start_idx, end_idx):
         row_num = idx + 2
         member_name = legislators[idx]
-        print(f"[{row_num}/{total_members + 1}] Processing Row {row_num}: {member_name}")
 
         existing_urls = get_existing_urls_for_member(member_name)
         articles = fetch_articles_for_member(member_name)
 
         if articles:
-            added_count = 0
             for article in articles:
                 norm_url = normalize_url(article["url"])
-                if norm_url in existing_urls:
-                    print(f"  └─ Skipped duplicate URL: {article['url']}")
-                    continue
+                if norm_url not in existing_urls:
+                    if send_source_to_web_app(member_name, article):
+                        existing_urls.add(norm_url)
 
-                success = send_source_to_web_app(member_name, article)
-                if success:
-                    existing_urls.add(norm_url)
-                    added_count += 1
-                    print(f"  └─ Added source [{article['stance']}]: {article['url']}")
+        completed_members.append({
+            "name": member_name,
+            "sheet_row": row_num
+        })
 
-            if added_count == 0:
-                print("  └─ All found articles were already present on the sheet.")
-        else:
-            print("  └─ No matching articles found.")
-
-        # Default 20-second pause between member requests to prevent rate limits
         time.sleep(DELAY_BETWEEN_MEMBERS)
+
+    with open(args.json, "w", encoding="utf-8") as f:
+        json.dump({"members": completed_members}, f, indent=2)
 
 
 if __name__ == "__main__":
