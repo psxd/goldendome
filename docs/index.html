@@ -1,0 +1,130 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Golden Dome Stance Dashboard</title><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/><style>
+body{margin:0;width:100%;height:100%;overflow:hidden;background:#f1eee8;
+font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+#map{position:fixed;inset:0;z-index:1;background:#f1eee8}
+.leaflet-container{background:#f1eee8;font-family:inherit}
+.dotHot{stroke:#eaaa00;stroke-width:3}
+.dotSel{stroke:#eaaa00;stroke-width:4;filter:drop-shadow(0 0 5px rgba(234,170,0,.95))}
+#ui{position:fixed;top:18px;left:18px;z-index:1000;width:335px;
+max-height:calc(100vh - 36px);box-sizing:border-box;overflow-y:auto;
+background:rgba(255,255,255,.94);border:1px solid #ddd;border-radius:16px;
+padding:16px;box-shadow:0 12px 35px rgba(0,0,0,.10)}
+#ui h1{margin:0 0 6px;font-size:21px;font-weight:800;color:#444}
+.introText{color:#666;line-height:1.35;font-size:13px;margin:0 0 10px}
+label{display:block;margin-top:10px;color:#555;font-size:12px;font-weight:600}
+input,select{width:100%;box-sizing:border-box;margin-top:6px;padding:9px;
+border:1px solid #ccc;border-radius:8px;background:#fff;font-size:13px}
+input:focus,select:focus{border-color:#eaaa00;outline:none}
+.twoCol{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+/* Search + autocomplete. left/right:0 pins the panel to the input's width. */
+.searchWrap{position:relative}
+.qSuggest{position:absolute;left:0;right:0;top:100%;z-index:1200;margin-top:5px;
+display:none;max-height:236px;overflow-y:auto;padding:4px;background:#fff;
+border:1px solid #ccc;border-radius:9px;box-shadow:0 10px 26px rgba(0,0,0,.16)}
+.qSuggest.open{display:block}
+.qOpt{display:flex;justify-content:space-between;align-items:center;gap:10px;
+padding:7px 9px;border-radius:6px;font-size:13px;color:#333;cursor:pointer;
+white-space:nowrap;overflow:hidden}
+.qOpt span:first-child{overflow:hidden;text-overflow:ellipsis}
+.qKind{flex:none;color:#999;font-size:11px;font-weight:600}
+.qOpt.on,.qOpt:hover{background:#f7dc93}
+.qOpt.on .qKind{color:#7a6a33}
+hr{border:0;border-top:1px solid rgba(0,0,0,.10);margin:14px 0}
+.resetBtn{box-sizing:border-box;width:100%;margin:18px 0 2px;padding:12px;
+font-size:13px;font-weight:700;
+color:#555;background:#fff;border:1px solid #ccc;border-radius:9px;cursor:pointer;
+font-family:inherit;transition:background .12s,border-color .12s,color .12s}
+.resetBtn:hover{background:#f4f1ea;border-color:#b5ab97;color:#333}
+.resetBtn:active{background:#ece7dc}
+.resetBtn:disabled{opacity:.45;cursor:default;background:#fff;border-color:#ddd;color:#888}
+.resetBtn:disabled:hover{background:#fff;border-color:#ddd;color:#888}
+.noResults{display:none;margin-top:10px;padding:11px 12px;border-radius:9px;
+background:#fff6d6;border:1px solid #eaaa00;color:#6b5410;font-size:13px;
+line-height:1.35;text-align:center}
+/* Country-wide view button: round, stacked under the Leaflet zoom controls. */
+.countryCtl{border:none;background:none;padding:0;line-height:0}
+.countryCtl .leaflet-bar{overflow:hidden;border-radius:50%;
+box-shadow:0 1px 5px rgba(0,0,0,.65)}
+.countryBtn{display:block;width:34px;height:34px;padding:0;background:#fff;border:0;
+color:#333;font-family:inherit;font-size:19px;line-height:34px;text-align:center;
+cursor:pointer;transition:background .12s,color .12s}
+.countryBtn:hover{background:#f4f1ea;color:#000}
+.countryBtn:active{background:#e6e1d6}
+.statsGridWithIn{display:grid;grid-template-columns:1fr 34px 1fr;align-items:center}
+.statBlock{text-align:center}
+.statNumber{font-size:42px;font-weight:800;line-height:1;color:#222}
+.statLabel{margin-top:4px;color:#666;font-size:13px}
+.statIn{color:#777;font-size:13px;font-style:italic;text-align:center}
+.legendList{width:100%;display:grid;gap:7px;color:#666;font-size:12px}
+.legendRow{display:flex;align-items:center;gap:8px}
+.legendDot{width:12px;height:12px;border-radius:50%;flex:none}
+.detailsBox{background:rgba(247,220,147,.35);border:1px solid #eaaa00;
+border-radius:10px;padding:12px;margin-top:4px;font-size:13px;color:#333}
+.mapNote{color:#666;font-size:12px;margin:8px 0 0;line-height:1.35}
+.cardHead{display:flex;gap:10px;align-items:center}
+.cardName{font-weight:700;color:#222;font-size:15px}
+.cardMeta{color:#666;font-size:12px;line-height:1.35}
+.avatar{border-radius:6px;display:flex;align-items:center;justify-content:center;
+color:#fff;font-weight:800;flex:none;border:1px solid #ddd;overflow:hidden}
+.photoBox{position:relative;display:inline-block;flex:none;overflow:hidden;
+border-radius:6px;border:1px solid #ddd;background:#f1eee8}
+.photoBox img{display:block;width:100%;height:100%;object-fit:cover}
+/* Hover overlay: a sibling of #map at z-index 800, always above the dots. */
+#hoverBox{position:absolute;z-index:800;pointer-events:none;display:none;
+transform:translate(-50%,-100%);background:rgba(24,24,24,.96);color:#f1eee8;
+border:1px solid #eaaa00;border-radius:8px;padding:6px 9px;font-size:12px;
+line-height:1.4;white-space:nowrap;box-shadow:0 6px 18px rgba(0,0,0,.4)}
+#hoverBox b{color:#f7dc93;font-size:13px}
+#hoverBox .hbSub{color:#c9c4bb;font-size:11px}
+/* Disclaimer */
+/* Disclaimer: the button and its panel share one hover target, so the panel
+   stays open while the pointer travels across the gap between them. */
+#discWrap{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:2200;
+display:inline-block;padding-bottom:10px}
+#discBtn{display:block;background:#f7dc93;border:1px solid #eaaa00;border-radius:999px;
+cursor:default;color:#1a1a1a;font-size:12px;font-weight:800;padding:6px 14px;
+box-shadow:0 6px 18px rgba(0,0,0,.18)}
+#discBtn:hover{background:#eaaa00}
+#discPanel{display:none;position:absolute;top:100%;left:50%;transform:translateX(-50%);
+width:620px;max-width:calc(100vw - 40px);background:rgba(255,255,255,.97);
+border:1px solid #eaaa00;border-radius:12px;margin-top:-10px;padding:14px 16px;
+box-shadow:0 14px 40px rgba(0,0,0,.28);color:#333;font-size:12.5px;line-height:1.5}
+/* Pure CSS reveal - no click handler, no close button. */
+#discWrap:hover #discPanel{display:block}
+#discWrap.kb #discPanel{display:block}
+.discHead{margin-bottom:6px;font-weight:800;color:#444}
+.moreBtn{width:100%;margin-top:10px;padding:8px;border-radius:8px;
+border:1px solid #eaaa00;background:#f7dc93;color:#1a1a1a;font-weight:700;
+font-size:13px;cursor:pointer}
+.moreBtn:hover{background:#eaaa00}
+.modalBackdrop{position:fixed;inset:0;z-index:2000;display:none;align-items:center;
+justify-content:center;background:rgba(0,0,0,.5)}
+.modalBackdrop.open{display:flex}
+.modalBox{width:680px;max-width:calc(100vw - 32px);max-height:calc(100vh - 80px);
+display:flex;flex-direction:column;background:#fff;border:1px solid #eaaa00;
+border-radius:14px;box-shadow:0 18px 50px rgba(0,0,0,.45)}
+.modalHeader{display:flex;align-items:center;justify-content:space-between;
+padding:12px 16px;border-bottom:1px solid rgba(0,0,0,.08);font-weight:800;
+color:#444;font-size:15px}
+.modalClose{background:#f7dc93;border:1px solid #eaaa00;border-radius:6px;
+width:26px;height:26px;cursor:pointer;font-size:12px;color:#1a1a1a}
+.modalBody{padding:14px 16px;overflow-y:auto}
+.srcRow{display:flex;gap:10px;border-top:1px solid #eee;padding:9px 0}
+.srcIdx{width:26px;height:26px;border-radius:50%;flex:none;background:#f1eee8;
+color:#555;display:flex;align-items:center;justify-content:center;font-size:11px;
+font-weight:800}
+.srcMain{flex:1;min-width:0}
+.srcName{font-weight:700;color:#1d4ed8;text-decoration:none}
+.srcName:hover{text-decoration:underline}
+.srcMeta{color:#666;font-size:12px;margin:2px 0}
+.srcSum{color:#333;font-size:12px;line-height:1.4}
+.stanceTag{display:inline-block;padding:1px 8px;border-radius:999px;font-size:11px;
+font-weight:800;color:#fff;margin-left:6px}
+.stFor{background:#16a34a}.stAgainst{background:#dc2626}
+.stNeutral{background:#6b7280}.stUnclear{background:#9ca3af}
+#gtLogo{position:fixed;right:26px;bottom:24px;z-index:9;width:320px;
+max-width:38vw;opacity:.23;filter:grayscale(1);pointer-events:none}
+.leaflet-top.leaflet-right{margin-top:18px;margin-right:18px}
+@media(max-width:640px){#ui{width:calc(100vw - 24px);left:12px;top:12px}
+#gtLogo{width:180px}}
+</style></head><body><div id="map"></div><div id="ui"><h1>Golden Dome Dashboard</h1><label>Search</label><div class="searchWrap"><input id="q" type="text" autocomplete="off" placeholder="Search name, state..."/><div id="qSuggest" class="qSuggest"></div></div><div class="twoCol"><div><label>Chamber</label><select id="fChamber"><option value="all">All</option></select></div><div><label>Party</label><select id="fParty"><option value="all">All</option></select></div></div><div class="twoCol"><div><label>State</label><select id="fState"><option value="all">All</option></select></div><div><label>Verdict</label><select id="fVerdict"><option value="all">All</option></select></div></div><div class="twoCol"><div><label>Min sources</label><select id="fMin"><option value="0">Any</option><option value="1">1+</option><option value="3">3+</option><option value="5">5+</option><option value="10">10+</option></select></div><div><label>Coverage</label><select id="fPhoto"><option value="all">All rows</option><option value="with">With sources</option><option value="without">No sources</option></select></div></div><button id="resetBtn" class="resetBtn" type="button">Clear filters</button><hr/><div class="statsGridWithIn"><div class="statBlock"><div class="statNumber" id="stMembers">0</div><div class="statLabel">members shown</div></div><div class="statIn">and</div><div class="statBlock"><div class="statNumber" id="stSources">0</div><div class="statLabel">sources shown</div></div></div><div id="noResults" class="noResults">No members match these filters. Try widening the search or clearing the filters.</div><hr/><div class="legendList"><div class="legendRow"><span class="legendDot" style="background:#2563eb"></span><span>Democrat</span></div><div class="legendRow"><span class="legendDot" style="background:#dc2626"></span><span>Republican</span></div><div class="legendRow"><span class="legendDot" style="background:#7c3aed"></span><span>Independent</span></div></div><hr/><div id="detailsBox" class="detailsBox"><p><b>Details</b><br/>Click any marker to see that member, then "View all" for every source.</p></div><p class="mapNote">Base map: open source US state polygons (unitedstates/districts, 2016 congressional districts). Photos: unitedstates.github.io Bioguide portraits.</p></div><div id="modalBackdrop" class="modalBackdrop"><div class="modalBox" role="dialog" aria-modal="true"><div class="modalHeader"><span id="modalTitle">Member</span><button id="modalClose" class="modalClose" title="Close">&#10005;</button></div><div id="modalBody" class="modalBody"></div></div></div><img id="gtLogo" src="ESPL.png" alt="ESPL logo"/><div id="discWrap"><button id="discBtn" title="Hover to read the disclaimer">&#9432; Disclaimer</button><div id="discPanel" role="dialog" aria-label="Disclaimer"><div class="discHead">Disclaimer</div><div>This tool is a research product currently under development. The information, summaries, and source evaluations presented here are experimental and may be generated by Artifical Intelligence (AI) and should not be treated as definitive record. The contents of this website do not represent the official views, policies, or endorsements of any individual, organization, or entity.</div></div></div><div id="hoverBox"></div><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><script src="app.js"></script></body></html>
